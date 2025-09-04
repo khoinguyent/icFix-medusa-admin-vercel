@@ -125,5 +125,8 @@
   },
   "bugs": {
     "url": "https://github.com/medusajs/admin/issues"
+  },
+  "engines": {
+    "node": "18.x"
   }
 }
