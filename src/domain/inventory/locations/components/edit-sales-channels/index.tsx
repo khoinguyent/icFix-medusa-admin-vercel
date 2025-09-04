@@ -2,7 +2,7 @@ import { StockLocationExpandedDTO } from "@medusajs/medusa"
 import {
   useAdminAddLocationToSalesChannel,
   useAdminRemoveLocationFromSalesChannel,
-} from "../../../../hooks/use-admin-stock-location-sales-channels"
+} from "../../../../../hooks/use-admin-stock-location-sales-channels"
 import Button from "../../../../../components/fundamentals/button"
 import useToggleState from "../../../../../hooks/use-toggle-state"
 import SalesChannelsModal from "../../../../products/components/sales-channels-modal"
