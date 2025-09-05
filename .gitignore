@@ -30,3 +30,4 @@ public
 
 .env
 .env.*.local
+.vercel
