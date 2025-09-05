@@ -1,4 +1,4 @@
-import { useAdminStockLocations } from "medusa-react"
+import { useAdminStockLocations } from "../../../hooks/use-admin-stock-locations"
 import Fade from "../../../components/atoms/fade-wrapper"
 import Spinner from "../../../components/atoms/spinner"
 import Button from "../../../components/fundamentals/button"
