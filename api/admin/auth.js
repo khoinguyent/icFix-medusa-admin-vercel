@@ -27,7 +27,7 @@ module.exports = async function handler(req, res) {
   if (method === "POST") {
     targetUrl = `${backendBase}/auth/admin/emailpass`
   } else if (method === "GET" || method === "DELETE") {
-    targetUrl = `${backendBase}/auth`
+    targetUrl = `${backendBase}/admin/auth`
   }
 
   if (!targetUrl) {
