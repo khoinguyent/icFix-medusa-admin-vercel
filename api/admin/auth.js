@@ -65,7 +65,15 @@ module.exports = async function handler(req, res) {
       init.body = body
     }
 
-    const response = await fetch(targetUrl, init)
+    let response = await fetch(targetUrl, init)
+
+    // If GET/DELETE to /admin/auth returned 404/401, try legacy /auth path as fallback
+    if ((method === "GET" || method === "DELETE") && (response.status === 404 || response.status === 401)) {
+      try {
+        const altUrl = `${backendBase}/auth`
+        response = await fetch(altUrl, init)
+      } catch (_) {}
+    }
 
     // Forward Set-Cookie header(s) and normalize Domain/SameSite/Secure for browser acceptance
     const collectSetCookies = () => {
