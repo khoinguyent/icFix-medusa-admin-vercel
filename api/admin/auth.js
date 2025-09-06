@@ -50,6 +50,14 @@ module.exports = async function handler(req, res) {
       headers["cookie"] = req.headers.cookie
     }
 
+    // If we have our own admin_jwt cookie, forward it as Authorization: Bearer ...
+    const cookieHeader = req.headers.cookie || ""
+    const jwtMatch = cookieHeader.match(/(?:^|;\s*)admin_jwt=([^;]+)/)
+    const adminJwt = jwtMatch ? decodeURIComponent(jwtMatch[1]) : null
+    if (adminJwt) {
+      headers["authorization"] = `Bearer ${adminJwt}`
+    }
+
     const init = { method, headers }
 
     if (method === "POST") {
@@ -106,6 +114,18 @@ module.exports = async function handler(req, res) {
     } catch (_) {}
 
     const ct = response.headers && response.headers.get ? (response.headers.get("content-type") || "application/json") : "application/json"
+    // If this is a successful POST login and backend returned a token, store it in a cookie for subsequent authorized requests
+    if (method === "POST" && response.ok && payload && typeof payload === "object" && payload.token) {
+      const tokenCookie = `admin_jwt=${encodeURIComponent(payload.token)}; Path=/; Secure; SameSite=None`
+      // append to any existing cookie header
+      const existing = res.getHeader("set-cookie")
+      if (existing) {
+        res.setHeader("set-cookie", Array.isArray(existing) ? [...existing, tokenCookie] : [existing, tokenCookie])
+      } else {
+        res.setHeader("set-cookie", tokenCookie)
+      }
+    }
+
     res.statusCode = response.status
     res.setHeader("content-type", ct)
     res.end(typeof payload === "string" ? payload : JSON.stringify(payload))
