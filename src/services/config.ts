@@ -1,8 +1,18 @@
-// Prefer relative "/api" when running under HTTPS (e.g., Vercel) to avoid mixed content.
+// Prefer relative "/api" for production/https (e.g., Vercel) to avoid mixed content.
 const defaultUrl = typeof window !== "undefined" && window.location.protocol === "https:"
   ? "/api"
-  : "http://128.199.188.70:9000"
+  : "/api" // In dev, Vite proxy will map "/api" to the backend
 
-const medusaUrl = __MEDUSA_BACKEND_URL__ || defaultUrl
+const resolved = __MEDUSA_BACKEND_URL__ || defaultUrl
+
+if (!resolved) {
+  // This is a runtime guard in case define wasn't set.
+  // eslint-disable-next-line no-console
+  console.error(
+    "MEDUSA_BACKEND_URL is not configured. Set MEDUSA_BACKEND_URL or NEXT_PUBLIC_MEDUSA_BACKEND_URL to your Medusa backend (e.g., https://your-backend-domain:9000). Falling back to /api."
+  )
+}
+
+const medusaUrl = resolved
 
 export { medusaUrl }

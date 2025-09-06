@@ -100,3 +100,28 @@ Use these channels to be part of the community, ask for help while using Medusa,
 - [Medusa Blog](https://medusajs.com/blog/): find diverse tutorials and company news.
 - [Twitter](https://twitter.com/medusajs)
 - [LinkedIn](https://www.linkedin.com/company/medusajs)
+
+## Environment
+
+Create a `.env` file with the following variables:
+
+```
+# Required: URL of your Medusa backend API (use https and include port 9000)
+# Example: https://api.your-domain.com:9000
+MEDUSA_BACKEND_URL=
+
+# Optional: fallback used by client build if MEDUSA_BACKEND_URL is not set
+NEXT_PUBLIC_MEDUSA_BACKEND_URL=
+```
+
+Notes:
+- The Admin app proxies API calls through `/api`.
+- Locally, the dev server proxies `/api/*` to `MEDUSA_BACKEND_URL`.
+- On Vercel, serverless functions under `/api` forward to your `MEDUSA_BACKEND_URL`.
+
+Backend CORS configuration (Medusa): ensure your deployed Admin domain is allowed.
+
+```
+# medusa backend .env
+ADMIN_CORS=https://your-vercel-admin-domain.vercel.app,https://admin.your-domain.com,http://localhost:5173
+```

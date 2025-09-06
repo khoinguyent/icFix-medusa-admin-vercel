@@ -11,6 +11,24 @@ dns.setDefaultResultOrder("verbatim")
 
 export default defineConfig({
   plugins: [react()],
+  server: {
+    proxy: {
+      // Auth login needs special rewrite for Medusa v2 email/password endpoint
+      "/api/admin/auth": {
+        target: env.MEDUSA_BACKEND_URL || env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000",
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api\/admin\/auth$/, "/auth/admin/emailpass"),
+      },
+      // Generic API proxy for other admin routes (session, logout, resources)
+      "/api": {
+        target: env.MEDUSA_BACKEND_URL || env.NEXT_PUBLIC_MEDUSA_BACKEND_URL || "http://localhost:9000",
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api/, ""),
+      },
+    },
+  },
   test: {
     environment: "jsdom",
     globals: true,
@@ -32,13 +50,8 @@ export default defineConfig({
     },
   },
   define: {
-    __MEDUSA_BACKEND_URL__: JSON.stringify(
-      env.MEDUSA_BACKEND_URL ||
-        // Backwards-compat with Gatsby.
-        env.GATSBY_MEDUSA_BACKEND_URL ||
-        env.GATSBY_STORE_URL ||
-        ""
-    ),
+    // Do not expose backend URL to the browser. Frontend must call relative /api.
+    __MEDUSA_BACKEND_URL__: JSON.stringify(""),
   },
   optimizeDeps: {
     exclude: ["typeorm", "medusa-interfaces"],

@@ -2,7 +2,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "public",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "http://128.199.188.70:9000/$1" },
+    // Let serverless functions under /api handle requests. Keep SPA fallback for client routing.
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
