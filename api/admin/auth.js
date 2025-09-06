@@ -32,7 +32,10 @@ module.exports = async function handler(req, res) {
   if (method === "POST") {
     // Use user actor for admin routes per Medusa defaults
     targetUrl = `${backendBase}/auth/user/emailpass`
-  } else if (method === "GET" || method === "DELETE") {
+  } else if (method === "DELETE") {
+    // Logout: destroy server-side session
+    targetUrl = `${backendBase}/auth/session`
+  } else if (method === "GET") {
     // Canonical identity endpoint
     targetUrl = `${backendBase}/admin/users/me`
   }
@@ -184,6 +187,17 @@ module.exports = async function handler(req, res) {
           }
         }
       } catch (_) {}
+    }
+
+    // On logout, clear admin_jwt cookie and forward backend cookie deletions
+    if (method === "DELETE" && response.ok) {
+      const clear = `admin_jwt=; Path=/; Max-Age=0; SameSite=None; Secure`
+      const existing = res.getHeader("set-cookie")
+      if (existing) {
+        res.setHeader("set-cookie", Array.isArray(existing) ? [...existing, clear] : [existing, clear])
+      } else {
+        res.setHeader("set-cookie", clear)
+      }
     }
 
     res.statusCode = response.status
