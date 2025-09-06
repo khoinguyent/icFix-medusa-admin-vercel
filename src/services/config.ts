@@ -1,7 +1,5 @@
 // Prefer relative "/api" for production/https (e.g., Vercel) to avoid mixed content.
-const defaultUrl = typeof window !== "undefined" && window.location.protocol === "https:"
-  ? "/api"
-  : "/api" // In dev, Vite proxy will map "/api" to the backend
+const defaultUrl = "/api/proxy"
 
 const resolved = __MEDUSA_BACKEND_URL__ || defaultUrl
 
