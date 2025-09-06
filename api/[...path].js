@@ -24,7 +24,7 @@ module.exports = async function handler(req, res) {
 
   const isAdminAuth = restPath.replace(/^\//, "") === "admin/auth"
   const targetUrl = isAdminAuth && method === "POST"
-    ? `${backendBase}/auth/admin/emailpass`
+    ? `${backendBase}/auth/user/emailpass`
     : `${backendBase}/${restPath}`.replace(/\/$/, "")
 
   try {
