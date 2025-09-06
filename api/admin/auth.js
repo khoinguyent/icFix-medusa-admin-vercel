@@ -59,9 +59,38 @@ module.exports = async function handler(req, res) {
 
     const response = await fetch(targetUrl, init)
 
-    const raw = response.headers && response.headers.get ? response.headers.get("set-cookie") : null
-    if (raw) {
-      res.setHeader("set-cookie", raw)
+    // Forward Set-Cookie header(s) and normalize Domain/SameSite/Secure for browser acceptance
+    const collectSetCookies = () => {
+      const headers = response.headers
+      const possible = []
+      // undici Response may expose multiple cookies via getSetCookie
+      const anyHeaders = /** @type {any} */ (headers)
+      if (typeof anyHeaders.getSetCookie === "function") {
+        try {
+          const arr = anyHeaders.getSetCookie()
+          if (Array.isArray(arr)) return arr
+        } catch (_) {}
+      }
+      const single = headers.get && headers.get("set-cookie")
+      if (single) possible.push(single)
+      return possible
+    }
+
+    const cookies = collectSetCookies()
+    if (cookies && cookies.length) {
+      const normalized = cookies.map((c) => {
+        let v = String(c)
+        // Drop Domain attribute so cookie becomes host-only for the Admin domain
+        v = v.replace(/;\s*Domain=[^;]+/gi, "")
+        // Ensure Secure when served over HTTPS
+        if (!/;\s*Secure/i.test(v)) {
+          v += "; Secure"
+        }
+        // Ensure SameSite=None for cross-site iframes/fetches; backend usually sets this already
+        v = v.replace(/;\s*SameSite=[^;]+/gi, "") + "; SameSite=None"
+        return v
+      })
+      res.setHeader("set-cookie", normalized)
     }
 
     const text = await response.text()
