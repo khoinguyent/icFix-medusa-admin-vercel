@@ -144,7 +144,45 @@ module.exports = async function handler(req, res) {
       // Optionally establish a server-side session cookie for subsequent requests
       try {
         const sessionHeaders = { ...headers, authorization: `Bearer ${payload.token}` }
-        await fetch(`${backendBase}/auth/session`, { method: "POST", headers: sessionHeaders })
+        const sessionResp = await fetch(`${backendBase}/auth/session`, { method: "POST", headers: sessionHeaders })
+
+        // Forward any Set-Cookie coming from /auth/session so the browser stores connect.sid
+        const sessionSetCookies = (() => {
+          const h = sessionResp.headers
+          const anyH = /** @type {any} */ (h)
+          if (typeof anyH.getSetCookie === "function") {
+            try {
+              const arr = anyH.getSetCookie()
+              if (Array.isArray(arr)) return arr
+            } catch (_) {}
+          }
+          const single = h.get && h.get("set-cookie")
+          return single ? [single] : []
+        })()
+
+        if (sessionSetCookies.length) {
+          // Normalize for browser acceptance on Vercel
+          const normalizedSess = sessionSetCookies.map((c) => {
+            let v = String(c)
+            v = v.replace(/;\s*Domain=[^;]+/gi, "")
+            if (/;\s*Path=[^;]*/i.test(v)) {
+              v = v.replace(/;\s*Path=[^;]*/i, "; Path=/")
+            } else {
+              v += "; Path=/"
+            }
+            if (!/;\s*Secure/i.test(v)) {
+              v += "; Secure"
+            }
+            v = v.replace(/;\s*SameSite=[^;]+/gi, "") + "; SameSite=None"
+            return v
+          })
+          const existing = res.getHeader("set-cookie")
+          if (existing) {
+            res.setHeader("set-cookie", Array.isArray(existing) ? [...existing, ...normalizedSess] : [existing, ...normalizedSess])
+          } else {
+            res.setHeader("set-cookie", normalizedSess)
+          }
+        }
       } catch (_) {}
     }
 
