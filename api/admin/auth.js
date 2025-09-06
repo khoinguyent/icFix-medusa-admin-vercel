@@ -7,6 +7,11 @@ function getBackendUrl() {
       "Missing MEDUSA_BACKEND_URL (or NEXT_PUBLIC_MEDUSA_BACKEND_URL) env var. Set it to your Medusa backend, e.g. https://your-backend-domain:9000"
     )
   }
+  if (!/^https?:\/\//i.test(url)) {
+    throw new Error(
+      `Invalid MEDUSA_BACKEND_URL: ${url}. It must be a full URL starting with http(s)://, e.g. https://your-backend-domain:9000`
+    )
+  }
   return url.replace(/\/$/, "")
 }
 
@@ -67,12 +72,22 @@ module.exports = async function handler(req, res) {
 
     let response = await fetch(targetUrl, init)
 
-    // If GET/DELETE to /admin/auth returned 404/401, try legacy /auth path as fallback
-    if ((method === "GET" || method === "DELETE") && (response.status === 404 || response.status === 401)) {
-      try {
-        const altUrl = `${backendBase}/auth`
-        response = await fetch(altUrl, init)
-      } catch (_) {}
+    // For session checks, try multiple known endpoints for compatibility across Medusa versions
+    if (method === "GET" || method === "DELETE") {
+      const candidates = [
+        `${backendBase}/admin/auth`,
+        `${backendBase}/auth`,
+        `${backendBase}/admin/users/me`,
+      ]
+      for (const url of candidates) {
+        try {
+          const r = await fetch(url, init)
+          if (r.status < 400) {
+            response = r
+            break
+          }
+        } catch (_) {}
+      }
     }
 
     // Forward Set-Cookie header(s) and normalize Domain/SameSite/Secure for browser acceptance
