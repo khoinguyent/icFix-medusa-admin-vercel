@@ -59,7 +59,8 @@ module.exports = async function handler(req, res) {
     const cookieHeader = req.headers.cookie || ""
     const jwtMatch = cookieHeader.match(/(?:^|;\s*)admin_jwt=([^;]+)/)
     const adminJwt = jwtMatch ? decodeURIComponent(jwtMatch[1]) : null
-    if (adminJwt) {
+    const hasAdminJwt = Boolean(adminJwt)
+    if (hasAdminJwt) {
       headers["authorization"] = `Bearer ${adminJwt}`
       headers["Authorization"] = `Bearer ${adminJwt}`
       headers["x-medusa-access-token"] = adminJwt
@@ -72,6 +73,7 @@ module.exports = async function handler(req, res) {
       init.body = body
     }
 
+    let selectedUrl = targetUrl
     let response = await fetch(targetUrl, init)
 
     // For session checks, try multiple known endpoints for compatibility across Medusa versions
@@ -86,6 +88,7 @@ module.exports = async function handler(req, res) {
           const r = await fetch(url, init)
           if (r.status < 400) {
             response = r
+            selectedUrl = url
             break
           }
         } catch (_) {}
@@ -131,6 +134,9 @@ module.exports = async function handler(req, res) {
       })
       res.setHeader("set-cookie", normalized)
     }
+
+    // Expose which backend endpoint was used for debugging
+    try { res.setHeader("x-proxied-endpoint", selectedUrl) } catch (_) {}
 
     const text = await response.text()
     let payload = text
