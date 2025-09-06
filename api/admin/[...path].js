@@ -10,7 +10,8 @@ module.exports = async function handler(req, res) {
     const qs = req.url && req.url.includes("?") ? `?${req.url.split("?")[1]}` : ""
     const target = `${BACKEND}/admin/${dynamicPath}${qs}`
 
-    const token = getCookie(req, "medusa_admin_token")
+    const bearer = getCookie(req, "medusa_admin_token")
+    const fwdCookie = req.headers.cookie || ""
 
     const headers = {}
     for (const [k, v] of Object.entries(req.headers || {})) {
@@ -19,7 +20,8 @@ module.exports = async function handler(req, res) {
       if (lower === "host" || lower === "content-length") continue
       headers[k] = Array.isArray(v) ? v.join(",") : v
     }
-    if (token) headers["authorization"] = `Bearer ${token}`
+    if (bearer) headers["authorization"] = `Bearer ${bearer}`
+    if (fwdCookie) headers["cookie"] = fwdCookie
     if (!headers["content-type"]) headers["content-type"] = "application/json"
 
     const method = req.method || "GET"
@@ -27,14 +29,15 @@ module.exports = async function handler(req, res) {
     const body = hasBody ? JSON.stringify(req.body ?? {}) : undefined
 
     const r = await fetch(target, { method, headers, body })
-    const text = await r.text()
+    const buf = await r.arrayBuffer()
 
     res.setHeader("x-proxied-endpoint", target)
+    res.setHeader("x-forwarded-cookies", fwdCookie ? fwdCookie.split(";").map(s=>s.trim().split("=")[0]).join(",") : "")
     for (const [k, v] of r.headers.entries()) {
       if (k.toLowerCase() === "set-cookie") continue
       res.setHeader(k, v)
     }
-    return res.status(r.status).send(text)
+    return res.status(r.status).send(Buffer.from(buf))
   } catch (e) {
     res.setHeader("x-proxy-error", String((e && e.message) || e))
     return res.status(502).json({ message: "Proxy to backend failed", error: String((e && e.message) || e) })

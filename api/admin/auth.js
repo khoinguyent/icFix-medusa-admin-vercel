@@ -29,33 +29,56 @@ module.exports = async function handler(req, res) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(creds),
       })
+
+      // capture backend cookies
+      const setCookie = r.headers.get("set-cookie") || ""
+      const cookiesOut = []
+      if (setCookie) {
+        for (const part of setCookie.split(/,(?=[^;]+=[^;]+)/g)) {
+          let c = part.trim()
+          if (!/;\s*Path=/i.test(c)) c += "; Path=/"
+          if (!/;\s*HttpOnly/i.test(c)) c += "; HttpOnly"
+          if (!/;\s*Secure/i.test(c)) c += "; Secure"
+          if (!/;\s*SameSite=/i.test(c)) c += "; SameSite=Lax"
+          cookiesOut.push(c)
+        }
+      }
+
       const text = await r.text()
       let data; try { data = JSON.parse(text) } catch { data = { raw: text } }
 
-      res.setHeader("x-proxied-endpoint", `${BACKEND}/auth/admin/emailpass`)
-
+      // also set our JWT cookie if present
       const token = data && data.token
       if (r.ok && token) {
-        res.setHeader("Set-Cookie", `medusa_admin_token=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${60*60*24*7}`)
+        cookiesOut.push(`medusa_admin_token=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${60*60*24*7}`)
       }
-      return res.status(r.status).json(data)
+      if (cookiesOut.length) res.setHeader("Set-Cookie", cookiesOut)
+
+      res.setHeader("x-proxied-endpoint", `${BACKEND}/auth/admin/emailpass`)
+      res.setHeader("x-set-cookie-count", String(cookiesOut.length))
+      return res.status(r.status).send(text)
     }
 
     if (req.method === "GET") {
-      // ✅ session check goes to /admin/auth
-      const token = getCookie(req, "medusa_admin_token")
-      const r = await fetch(`${BACKEND}/admin/auth`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        cache: "no-store",
-      })
+      const bearer = getCookie(req, "medusa_admin_token")
+      const fwdCookie = req.headers.cookie || ""
+      const headers = {}
+      if (bearer) headers["authorization"] = `Bearer ${bearer}`
+      if (fwdCookie) headers["cookie"] = fwdCookie
+
+      const r = await fetch(`${BACKEND}/admin/auth`, { headers, cache: "no-store" })
       const text = await r.text()
-      let data; try { data = JSON.parse(text) } catch { data = { raw: text } }
       res.setHeader("x-proxied-endpoint", `${BACKEND}/admin/auth`)
-      return res.status(r.status).json(data)
+      res.setHeader("x-forwarded-cookies", fwdCookie ? fwdCookie.split(";").map(s=>s.trim().split("=")[0]).join(",") : "")
+      res.setHeader("x-bearer-present", bearer ? "true" : "false")
+      return res.status(r.status).send(text)
     }
 
     if (req.method === "DELETE") {
-      res.setHeader("Set-Cookie", "medusa_admin_token=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0")
+      res.setHeader("Set-Cookie", [
+        "medusa_admin_token=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0",
+        "connect.sid=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0"
+      ])
       return res.status(200).json({ ok: true })
     }
 
