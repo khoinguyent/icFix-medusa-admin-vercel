@@ -19,44 +19,50 @@ function parseBody(req) {
   return {}
 }
 
+function ensureArray(val) { return Array.isArray(val) ? val : (val ? [val] : []) }
+
 module.exports = async function handler(req, res) {
   if (!BACKEND) return res.status(500).json({ message: "MEDUSA_BACKEND_URL is not set" })
   try {
     if (req.method === "POST") {
       const creds = parseBody(req)
-      const r = await fetch(`${BACKEND}/auth/admin/emailpass`, {
+      const login = await fetch(`${BACKEND}/auth/admin/emailpass`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(creds),
       })
+      const loginTxt = await login.text()
+      let loginData; try { loginData = JSON.parse(loginTxt) } catch { loginData = { raw: loginTxt } }
 
-      // capture backend cookies
-      const setCookie = r.headers.get("set-cookie") || ""
       const cookiesOut = []
-      if (setCookie) {
-        for (const part of setCookie.split(/,(?=[^;]+=[^;]+)/g)) {
-          let c = part.trim()
+      const token = loginData && loginData.token
+      if (login.ok && token) {
+        // Exchange JWT for session cookie
+        const sess = await fetch(`${BACKEND}/auth/session`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        // collect backend Set-Cookie(s)
+        const setCookieHeader = sess.headers.get("set-cookie") || ""
+        let sessionCookies = ensureArray(setCookieHeader)
+        if (!sessionCookies.length && setCookieHeader) {
+          sessionCookies = setCookieHeader.split(/,(?=[^;]+=[^;]+)/g).map((p) => p.trim())
+        }
+        for (let c of sessionCookies) {
           if (!/;\s*Path=/i.test(c)) c += "; Path=/"
           if (!/;\s*HttpOnly/i.test(c)) c += "; HttpOnly"
           if (!/;\s*Secure/i.test(c)) c += "; Secure"
           if (!/;\s*SameSite=/i.test(c)) c += "; SameSite=Lax"
           cookiesOut.push(c)
         }
-      }
-
-      const text = await r.text()
-      let data; try { data = JSON.parse(text) } catch { data = { raw: text } }
-
-      // also set our JWT cookie if present
-      const token = data && data.token
-      if (r.ok && token) {
+        // keep JWT cookie as fallback for Bearer auth
         cookiesOut.push(`medusa_admin_token=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${60*60*24*7}`)
       }
       if (cookiesOut.length) res.setHeader("Set-Cookie", cookiesOut)
 
       res.setHeader("x-proxied-endpoint", `${BACKEND}/auth/admin/emailpass`)
       res.setHeader("x-set-cookie-count", String(cookiesOut.length))
-      return res.status(r.status).send(text)
+      return res.status(login.status).send(loginTxt)
     }
 
     if (req.method === "GET") {
@@ -66,9 +72,9 @@ module.exports = async function handler(req, res) {
       if (bearer) headers["authorization"] = `Bearer ${bearer}`
       if (fwdCookie) headers["cookie"] = fwdCookie
 
-      const r = await fetch(`${BACKEND}/admin/auth`, { headers, cache: "no-store" })
+      const r = await fetch(`${BACKEND}/admin/users/me`, { method: "GET", headers, cache: "no-store" })
       const text = await r.text()
-      res.setHeader("x-proxied-endpoint", `${BACKEND}/admin/auth`)
+      res.setHeader("x-proxied-endpoint", `${BACKEND}/admin/users/me`)
       res.setHeader("x-forwarded-cookies", fwdCookie ? fwdCookie.split(";").map(s=>s.trim().split("=")[0]).join(",") : "")
       res.setHeader("x-bearer-present", bearer ? "true" : "false")
       return res.status(r.status).send(text)
