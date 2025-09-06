@@ -82,11 +82,17 @@ module.exports = async function handler(req, res) {
         let v = String(c)
         // Drop Domain attribute so cookie becomes host-only for the Admin domain
         v = v.replace(/;\s*Domain=[^;]+/gi, "")
+        // Force Path=/ so the cookie is sent to /api/* routes
+        if (/;\s*Path=[^;]*/i.test(v)) {
+          v = v.replace(/;\s*Path=[^;]*/i, "; Path=/")
+        } else {
+          v += "; Path=/"
+        }
         // Ensure Secure when served over HTTPS
         if (!/;\s*Secure/i.test(v)) {
           v += "; Secure"
         }
-        // Ensure SameSite=None for cross-site iframes/fetches; backend usually sets this already
+        // Ensure SameSite=None for cross-site; remove any existing then add None
         v = v.replace(/;\s*SameSite=[^;]+/gi, "") + "; SameSite=None"
         return v
       })
