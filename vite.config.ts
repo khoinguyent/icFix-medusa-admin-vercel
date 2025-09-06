@@ -40,7 +40,7 @@ export default defineConfig({
           proxy.on("proxyReq", (proxyReq, req) => {
             try {
               const isPost = (req.method || "").toUpperCase() === "POST"
-              const newPath = isPost ? "/auth/admin/emailpass" : "/admin/auth"
+              const newPath = isPost ? "/auth/user/emailpass" : "/admin/users/me"
               // Update the path of the outgoing request
               // @ts-ignore - node ClientRequest exposes path
               proxyReq.path = newPath
@@ -51,8 +51,8 @@ export default defineConfig({
             } catch (_) {}
           })
         },
-        // Default rewrite to backend /admin/auth; proxyReq will switch to login path for POST
-        rewrite: (path) => path.replace(/^\/api\/admin\/auth$/, "/admin/auth"),
+        // Default rewrite to backend /admin/users/me; proxyReq will switch to login path for POST
+        rewrite: (path) => path.replace(/^\/api\/admin\/auth$/, "/admin/users/me"),
       },
       // Generic API proxy for other admin routes (session, logout, resources)
       "/api": {

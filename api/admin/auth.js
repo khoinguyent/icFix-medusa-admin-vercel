@@ -30,9 +30,11 @@ module.exports = async function handler(req, res) {
 
   let targetUrl = ""
   if (method === "POST") {
-    targetUrl = `${backendBase}/auth/admin/emailpass`
+    // Use user actor for admin routes per Medusa defaults
+    targetUrl = `${backendBase}/auth/user/emailpass`
   } else if (method === "GET" || method === "DELETE") {
-    targetUrl = `${backendBase}/admin/auth`
+    // Canonical identity endpoint
+    targetUrl = `${backendBase}/admin/users/me`
   }
 
   if (!targetUrl) {
@@ -76,24 +78,7 @@ module.exports = async function handler(req, res) {
     let selectedUrl = targetUrl
     let response = await fetch(targetUrl, init)
 
-    // For session checks, try multiple known endpoints for compatibility across Medusa versions
-    if (method === "GET" || method === "DELETE") {
-      const candidates = [
-        `${backendBase}/admin/auth`,
-        `${backendBase}/auth`,
-        `${backendBase}/admin/users/me`,
-      ]
-      for (const url of candidates) {
-        try {
-          const r = await fetch(url, init)
-          if (r.status < 400) {
-            response = r
-            selectedUrl = url
-            break
-          }
-        } catch (_) {}
-      }
-    }
+    // No additional probing needed; /admin/users/me is the expected endpoint
 
     // Forward Set-Cookie header(s) and normalize Domain/SameSite/Secure for browser acceptance
     const collectSetCookies = () => {
@@ -155,6 +140,12 @@ module.exports = async function handler(req, res) {
       } else {
         res.setHeader("set-cookie", tokenCookie)
       }
+
+      // Optionally establish a server-side session cookie for subsequent requests
+      try {
+        const sessionHeaders = { ...headers, authorization: `Bearer ${payload.token}` }
+        await fetch(`${backendBase}/auth/session`, { method: "POST", headers: sessionHeaders })
+      } catch (_) {}
     }
 
     res.statusCode = response.status
