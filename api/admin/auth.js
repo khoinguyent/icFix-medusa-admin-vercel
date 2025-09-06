@@ -33,8 +33,8 @@ module.exports = async function handler(req, res) {
     // Per requested behavior: admin emailpass
     targetUrl = `${backendBase}/auth/admin/emailpass`
   } else if (method === "GET") {
-    // Validate token via /auth
-    targetUrl = `${backendBase}/auth`
+    // Validate token via admin auth endpoint
+    targetUrl = `${backendBase}/admin/auth`
   } else if (method === "DELETE") {
     // No backend call needed; we'll just clear cookie and return 200
     targetUrl = ""
@@ -95,7 +95,7 @@ module.exports = async function handler(req, res) {
     // Do not forward backend Set-Cookie. We will manage our own auth cookie.
 
     // Expose which backend endpoint was used for debugging
-    try { res.setHeader("x-proxied-endpoint", selectedUrl) } catch (_) {}
+    try { res.setHeader("x-proxied-endpoint", selectedUrl || targetUrl) } catch (_) {}
 
     const text = await response.text()
     let payload = text
