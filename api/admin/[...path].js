@@ -1,19 +1,19 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node"
-import { getCookie } from "../_utils/cookies"
+const { getCookie } = require("../_utils/cookies")
+
 const BACKEND = process.env.MEDUSA_BACKEND_URL
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+module.exports = async function handler(req, res) {
   if (!BACKEND) return res.status(500).json({ message: "MEDUSA_BACKEND_URL is not set" })
   try {
-    const seg = (req.query as any).path
-    const dynamicPath = Array.isArray(seg) ? seg.join("/") : (seg || "")
-    const qs = req.url?.includes("?") ? `?${req.url.split("?")[1]}` : ""
+    const seg = (req.query && req.query.path) || ""
+    const dynamicPath = Array.isArray(seg) ? seg.join("/") : seg
+    const qs = req.url && req.url.includes("?") ? `?${req.url.split("?")[1]}` : ""
     const target = `${BACKEND}/admin/${dynamicPath}${qs}`
 
     const token = getCookie(req, "medusa_admin_token")
 
-    const headers: Record<string, string> = {}
-    for (const [k, v] of Object.entries(req.headers)) {
+    const headers = {}
+    for (const [k, v] of Object.entries(req.headers || {})) {
       if (!v) continue
       const lower = k.toLowerCase()
       if (lower === "host" || lower === "content-length") continue
@@ -23,7 +23,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!headers["content-type"]) headers["content-type"] = "application/json"
 
     const method = req.method || "GET"
-    const hasBody = !["GET","HEAD"].includes(method)
+    const hasBody = !["GET", "HEAD"].includes(method)
     const body = hasBody ? JSON.stringify(req.body ?? {}) : undefined
 
     const r = await fetch(target, { method, headers, body })
@@ -35,9 +35,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.setHeader(k, v)
     }
     return res.status(r.status).send(text)
-  } catch (e: any) {
-    res.setHeader("x-proxy-error", String(e?.message || e))
-    return res.status(502).json({ message: "Proxy to backend failed", error: String(e?.message || e) })
+  } catch (e) {
+    res.setHeader("x-proxy-error", String((e && e.message) || e))
+    return res.status(502).json({ message: "Proxy to backend failed", error: String((e && e.message) || e) })
   }
 }
 

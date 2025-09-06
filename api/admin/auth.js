@@ -1,14 +1,13 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node"
-import { getCookie } from "../_utils/cookies"
+const { getCookie } = require("../_utils/cookies")
 
 const BACKEND = process.env.MEDUSA_BACKEND_URL
 
-function parseBody(req: VercelRequest): Record<string, any> {
+function parseBody(req) {
   const ct = String(req.headers["content-type"] || "").toLowerCase()
   try {
     if (ct.includes("application/json")) {
       if (typeof req.body === "string") return JSON.parse(req.body || "{}")
-      if (typeof req.body === "object" && req.body) return req.body as any
+      if (req.body && typeof req.body === "object") return req.body
       return {}
     }
     if (ct.includes("application/x-www-form-urlencoded")) {
@@ -16,13 +15,12 @@ function parseBody(req: VercelRequest): Record<string, any> {
       return Object.fromEntries(new URLSearchParams(raw))
     }
   } catch {}
-  if (typeof req.body === "object" && req.body) return req.body as any
+  if (req.body && typeof req.body === "object") return req.body
   return {}
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+module.exports = async function handler(req, res) {
   if (!BACKEND) return res.status(500).json({ message: "MEDUSA_BACKEND_URL is not set" })
-
   try {
     if (req.method === "POST") {
       const creds = parseBody(req)
@@ -32,10 +30,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         body: JSON.stringify(creds),
       })
       const text = await r.text()
-      let data: any; try { data = JSON.parse(text) } catch { data = { raw: text } }
+      let data; try { data = JSON.parse(text) } catch { data = { raw: text } }
+
       res.setHeader("x-proxied-endpoint", `${BACKEND}/auth/admin/emailpass`)
 
-      const token = data?.token
+      const token = data && data.token
       if (r.ok && token) {
         res.setHeader("Set-Cookie", `medusa_admin_token=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${60*60*24*7}`)
       }
@@ -43,13 +42,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === "GET") {
+      // ✅ session check goes to /admin/auth
       const token = getCookie(req, "medusa_admin_token")
       const r = await fetch(`${BACKEND}/admin/auth`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         cache: "no-store",
       })
       const text = await r.text()
-      let data: any; try { data = JSON.parse(text) } catch { data = { raw: text } }
+      let data; try { data = JSON.parse(text) } catch { data = { raw: text } }
       res.setHeader("x-proxied-endpoint", `${BACKEND}/admin/auth`)
       return res.status(r.status).json(data)
     }
@@ -60,9 +60,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     return res.status(405).json({ message: "Method Not Allowed" })
-  } catch (e: any) {
-    res.setHeader("x-proxy-error", String(e?.message || e))
-    return res.status(502).json({ message: "Proxy to backend failed", error: String(e?.message || e) })
+  } catch (e) {
+    res.setHeader("x-proxy-error", String((e && e.message) || e))
+    return res.status(502).json({ message: "Proxy to backend failed", error: String((e && e.message) || e) })
   }
 }
 
