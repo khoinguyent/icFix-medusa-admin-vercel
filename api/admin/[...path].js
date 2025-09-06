@@ -20,17 +20,10 @@ module.exports = async function handler(req, res) {
   }
 
   const method = req.method || "GET"
-  const restPath = Array.isArray(req.query.path) ? req.query.path.join("/") : String(req.query.path || "")
-
-  // Only proxy /admin/* paths through here
-  // Only allow /admin/* through this handler
-  if (!/^admin\//.test(restPath)) {
-    res.statusCode = 404
-    res.setHeader("content-type", "application/json")
-    res.end(JSON.stringify({ message: "Not Found" }))
-    return
-  }
-  const targetUrl = `${backendBase}/${restPath}`.replace(/\/$/, "")
+  const raw = req.query.path
+  const parts = Array.isArray(raw) ? raw : [String(raw || "")]
+  const restPath = parts.join("/")
+  const targetUrl = `${backendBase}/admin/${restPath}`.replace(/\/$/, "")
 
   try {
     const headers = {
@@ -40,7 +33,7 @@ module.exports = async function handler(req, res) {
       "user-agent": req.headers["user-agent"] || "",
     }
 
-    // Use our HttpOnly cookie to add Bearer token; do not forward backend cookies
+    // Pull HttpOnly token cookie and add as Bearer
     const cookieHeader = req.headers["cookie"] || ""
     const m = String(cookieHeader).match(/(?:^|;\s*)medusa_admin_token=([^;]+)/)
     const token = m ? decodeURIComponent(m[1]) : null
@@ -55,8 +48,7 @@ module.exports = async function handler(req, res) {
 
     const response = await fetch(targetUrl, init)
 
-    // Do not forward backend Set-Cookie to the browser
-
+    // Do not forward backend cookies
     const buf = await response.arrayBuffer()
     const ct = response.headers && response.headers.get ? (response.headers.get("content-type") || "application/json") : "application/json"
     res.statusCode = response.status
