@@ -30,14 +30,23 @@ module.exports = async function handler(req, res) {
 
   let targetUrl = ""
   if (method === "POST") {
-    // Use user actor for admin routes per Medusa defaults
-    targetUrl = `${backendBase}/auth/user/emailpass`
-  } else if (method === "DELETE") {
-    // Logout: destroy server-side session
-    targetUrl = `${backendBase}/auth/session`
+    // Per requested behavior: admin emailpass
+    targetUrl = `${backendBase}/auth/admin/emailpass`
   } else if (method === "GET") {
-    // Canonical identity endpoint
-    targetUrl = `${backendBase}/admin/users/me`
+    // Validate token via /auth
+    targetUrl = `${backendBase}/auth`
+  } else if (method === "DELETE") {
+    // No backend call needed; we'll just clear cookie and return 200
+    targetUrl = ""
+  }
+
+  // DELETE: clear cookie locally and exit
+  if (method === "DELETE") {
+    res.setHeader("set-cookie", "medusa_admin_token=; Path=/; HttpOnly; Max-Age=0; SameSite=None; Secure")
+    res.statusCode = 200
+    res.setHeader("content-type", "application/json")
+    res.end(JSON.stringify({ success: true }))
+    return
   }
 
   if (!targetUrl) {
@@ -60,9 +69,9 @@ module.exports = async function handler(req, res) {
       headers["cookie"] = req.headers.cookie
     }
 
-    // If we have our own admin_jwt cookie, forward it as Authorization: Bearer ...
+    // If we have our own token cookie, forward it as Authorization: Bearer ...
     const cookieHeader = req.headers.cookie || ""
-    const jwtMatch = cookieHeader.match(/(?:^|;\s*)admin_jwt=([^;]+)/)
+    const jwtMatch = cookieHeader.match(/(?:^|;\s*)medusa_admin_token=([^;]+)/)
     const adminJwt = jwtMatch ? decodeURIComponent(jwtMatch[1]) : null
     const hasAdminJwt = Boolean(adminJwt)
     if (hasAdminJwt) {
@@ -83,45 +92,7 @@ module.exports = async function handler(req, res) {
 
     // No additional probing needed; /admin/users/me is the expected endpoint
 
-    // Forward Set-Cookie header(s) and normalize Domain/SameSite/Secure for browser acceptance
-    const collectSetCookies = () => {
-      const headers = response.headers
-      const possible = []
-      // undici Response may expose multiple cookies via getSetCookie
-      const anyHeaders = /** @type {any} */ (headers)
-      if (typeof anyHeaders.getSetCookie === "function") {
-        try {
-          const arr = anyHeaders.getSetCookie()
-          if (Array.isArray(arr)) return arr
-        } catch (_) {}
-      }
-      const single = headers.get && headers.get("set-cookie")
-      if (single) possible.push(single)
-      return possible
-    }
-
-    const cookies = collectSetCookies()
-    if (cookies && cookies.length) {
-      const normalized = cookies.map((c) => {
-        let v = String(c)
-        // Drop Domain attribute so cookie becomes host-only for the Admin domain
-        v = v.replace(/;\s*Domain=[^;]+/gi, "")
-        // Force Path=/ so the cookie is sent to /api/* routes
-        if (/;\s*Path=[^;]*/i.test(v)) {
-          v = v.replace(/;\s*Path=[^;]*/i, "; Path=/")
-        } else {
-          v += "; Path=/"
-        }
-        // Ensure Secure when served over HTTPS
-        if (!/;\s*Secure/i.test(v)) {
-          v += "; Secure"
-        }
-        // Ensure SameSite=None for cross-site; remove any existing then add None
-        v = v.replace(/;\s*SameSite=[^;]+/gi, "") + "; SameSite=None"
-        return v
-      })
-      res.setHeader("set-cookie", normalized)
-    }
+    // Do not forward backend Set-Cookie. We will manage our own auth cookie.
 
     // Expose which backend endpoint was used for debugging
     try { res.setHeader("x-proxied-endpoint", selectedUrl) } catch (_) {}
@@ -133,71 +104,10 @@ module.exports = async function handler(req, res) {
     } catch (_) {}
 
     const ct = response.headers && response.headers.get ? (response.headers.get("content-type") || "application/json") : "application/json"
-    // If this is a successful POST login and backend returned a token, store it in a cookie for subsequent authorized requests
+    // If this is a successful POST login and backend returned a token, set our own HttpOnly cookie only
     if (method === "POST" && response.ok && payload && typeof payload === "object" && payload.token) {
-      const tokenCookie = `admin_jwt=${encodeURIComponent(payload.token)}; Path=/; Secure; SameSite=None`
-      // append to any existing cookie header
-      const existing = res.getHeader("set-cookie")
-      if (existing) {
-        res.setHeader("set-cookie", Array.isArray(existing) ? [...existing, tokenCookie] : [existing, tokenCookie])
-      } else {
-        res.setHeader("set-cookie", tokenCookie)
-      }
-
-      // Optionally establish a server-side session cookie for subsequent requests
-      try {
-        const sessionHeaders = { ...headers, authorization: `Bearer ${payload.token}` }
-        const sessionResp = await fetch(`${backendBase}/auth/session`, { method: "POST", headers: sessionHeaders })
-
-        // Forward any Set-Cookie coming from /auth/session so the browser stores connect.sid
-        const sessionSetCookies = (() => {
-          const h = sessionResp.headers
-          const anyH = /** @type {any} */ (h)
-          if (typeof anyH.getSetCookie === "function") {
-            try {
-              const arr = anyH.getSetCookie()
-              if (Array.isArray(arr)) return arr
-            } catch (_) {}
-          }
-          const single = h.get && h.get("set-cookie")
-          return single ? [single] : []
-        })()
-
-        if (sessionSetCookies.length) {
-          // Normalize for browser acceptance on Vercel
-          const normalizedSess = sessionSetCookies.map((c) => {
-            let v = String(c)
-            v = v.replace(/;\s*Domain=[^;]+/gi, "")
-            if (/;\s*Path=[^;]*/i.test(v)) {
-              v = v.replace(/;\s*Path=[^;]*/i, "; Path=/")
-            } else {
-              v += "; Path=/"
-            }
-            if (!/;\s*Secure/i.test(v)) {
-              v += "; Secure"
-            }
-            v = v.replace(/;\s*SameSite=[^;]+/gi, "") + "; SameSite=None"
-            return v
-          })
-          const existing = res.getHeader("set-cookie")
-          if (existing) {
-            res.setHeader("set-cookie", Array.isArray(existing) ? [...existing, ...normalizedSess] : [existing, ...normalizedSess])
-          } else {
-            res.setHeader("set-cookie", normalizedSess)
-          }
-        }
-      } catch (_) {}
-    }
-
-    // On logout, clear admin_jwt cookie and forward backend cookie deletions
-    if (method === "DELETE" && response.ok) {
-      const clear = `admin_jwt=; Path=/; Max-Age=0; SameSite=None; Secure`
-      const existing = res.getHeader("set-cookie")
-      if (existing) {
-        res.setHeader("set-cookie", Array.isArray(existing) ? [...existing, clear] : [existing, clear])
-      } else {
-        res.setHeader("set-cookie", clear)
-      }
+      const tokenCookie = `medusa_admin_token=${encodeURIComponent(payload.token)}; Path=/; HttpOnly; Secure; SameSite=None`
+      res.setHeader("set-cookie", tokenCookie)
     }
 
     res.statusCode = response.status
