@@ -61,6 +61,8 @@ module.exports = async function handler(req, res) {
     const adminJwt = jwtMatch ? decodeURIComponent(jwtMatch[1]) : null
     if (adminJwt) {
       headers["authorization"] = `Bearer ${adminJwt}`
+      headers["Authorization"] = `Bearer ${adminJwt}`
+      headers["x-medusa-access-token"] = adminJwt
     }
 
     const init = { method, headers }
