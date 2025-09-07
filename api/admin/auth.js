@@ -1,5 +1,4 @@
 const { getCookie } = require("../_utils/cookies")
-const { getSetCookies, hardenCookieAttributes, cookieNames } = require("../_utils/headers")
 
 const BACKEND = process.env.MEDUSA_BACKEND_URL
 
@@ -20,23 +19,7 @@ function parseBody(req) {
   return {}
 }
 
-function ensureArray(val) { return Array.isArray(val) ? val : (val ? [val] : []) }
-
-async function createSessionWithFallback(jwt) {
-  const attempts = ["/auth/session", "/auth/admin/session"]
-  for (const path of attempts) {
-    const r = await fetch(`${BACKEND}${path}`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${jwt}` },
-    })
-    if (r.ok) {
-      const cookies = getSetCookies(r).map(hardenCookieAttributes)
-      return { ok: true, cookies, endpointTried: path, status: r.status }
-    }
-    if (r.status >= 500) return { ok: false, cookies: [], endpointTried: path, status: r.status }
-  }
-  return { ok: false, cookies: [], endpointTried: "both", status: 401 }
-}
+// No session exchange here. We only set medusa_admin_token and use Bearer.
 
 module.exports = async function handler(req, res) {
   if (!BACKEND) return res.status(500).json({ message: "MEDUSA_BACKEND_URL is not set" })
@@ -51,20 +34,12 @@ module.exports = async function handler(req, res) {
       const loginTxt = await login.text()
       let loginData; try { loginData = JSON.parse(loginTxt) } catch { loginData = { raw: loginTxt } }
 
-      const cookiesOut = []
       const token = loginData && loginData.token
-      let sessionInfo = { ok: false, cookies: [], endpointTried: "" }
       if (login.ok && token) {
-        sessionInfo = await createSessionWithFallback(token)
-        cookiesOut.push(...sessionInfo.cookies)
-        cookiesOut.push(`medusa_admin_token=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${60*60*24*7}`)
+        res.setHeader("Set-Cookie", `medusa_admin_token=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${60*60*24*7}`)
       }
-      if (cookiesOut.length) res.setHeader("Set-Cookie", cookiesOut)
 
       res.setHeader("x-proxied-endpoint", `${BACKEND}/auth/admin/emailpass`)
-      res.setHeader("x-session-created", String(sessionInfo.ok))
-      res.setHeader("x-session-endpoint", sessionInfo.endpointTried || "")
-      res.setHeader("x-set-cookie-names", cookieNames(cookiesOut).join(","))
       return res.status(login.status).send(loginTxt)
     }
 
