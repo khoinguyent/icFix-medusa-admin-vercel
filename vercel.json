@@ -4,6 +4,18 @@
     "outputDirectory": ".",
     "rewrites": [
       {
+        "source": "/app/assets/(.*)",
+        "destination": "/assets/$1"
+      },
+      {
+        "source": "/app/(.*)",
+        "destination": "/index.html"
+      },
+      {
+        "source": "/app",
+        "destination": "/index.html"
+      },
+      {
         "source": "/admin/(.*)",
         "destination": "/api/proxy/admin/$1"
       },
@@ -14,6 +26,13 @@
       {
         "source": "/((?!assets|api).*)",
         "destination": "/index.html"
+      }
+    ],
+    "redirects": [
+      {
+        "source": "/",
+        "destination": "/app",
+        "permanent": false
       }
     ]
   }
