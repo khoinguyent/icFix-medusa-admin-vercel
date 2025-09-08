@@ -1,19 +1,20 @@
 {
-  "framework": "vite",
-  "buildCommand": "echo 'Using pre-built files'",
-  "outputDirectory": ".",
-  "rewrites": [
-    {
-      "source": "/admin/(.*)",
-      "destination": "/api/proxy"
-    },
-    {
-      "source": "/auth/(.*)",
-      "destination": "/api/proxy"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ]
-}
+    "framework": "vite",
+    "buildCommand": "echo 'Using pre-built files'",
+    "outputDirectory": ".",
+    "rewrites": [
+      {
+        "source": "/admin/(.*)",
+        "destination": "/api/proxy"
+      },
+      {
+        "source": "/auth/(.*)",
+        "destination": "/api/proxy"
+      },
+      {
+        "source": "/(.*)",
+        "destination": "/index.html"
+      }
+    ]
+  }
+  

@@ -1,9 +1,9 @@
 {
-  "name": "medusa-admin-vercel",
-  "version": "1.0.0",
-  "scripts": {
-    "build": "echo 'Using pre-built admin files'",
-    "dev": "echo 'This is a static build project'"
-  },
-  "private": true
-}
+    "name": "medusa-admin-vercel",
+    "version": "1.0.0",
+    "scripts": {
+      "build": "echo 'Using pre-built admin files'"
+    },
+    "private": true
+  }
+  

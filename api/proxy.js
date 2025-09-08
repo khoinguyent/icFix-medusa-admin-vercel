@@ -1,5 +1,5 @@
 export default async function handler(req, res) {
-    const backendUrl = process.env.MEDUSA_BACKEND_URL
+    const backendUrl = process.env.MEDUSA_BACKEND_URL || 'https://icfix.duckdns.org'
     
     const url = `${backendUrl}${req.url}`
     
@@ -16,7 +16,6 @@ export default async function handler(req, res) {
   
       const data = await response.text()
       
-      // Forward response headers including cookies
       response.headers.forEach((value, key) => {
         if (!['content-encoding', 'transfer-encoding'].includes(key.toLowerCase())) {
           res.setHeader(key, value)
