@@ -5,14 +5,14 @@
     "rewrites": [
       {
         "source": "/admin/(.*)",
-        "destination": "/api/proxy"
+        "destination": "/api/proxy/admin/$1"
       },
       {
         "source": "/auth/(.*)",
-        "destination": "/api/proxy"
+        "destination": "/api/proxy/auth/$1"
       },
       {
-        "source": "/(.*)",
+        "source": "/((?!assets|api).*)",
         "destination": "/index.html"
       }
     ]
